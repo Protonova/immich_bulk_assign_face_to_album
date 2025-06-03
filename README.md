@@ -5,28 +5,28 @@ A Python script for bulk assigning faces to assets within a specified album in y
 ![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)
 ![UV](https://img.shields.io/badge/Dependencies-UV-purple.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Status](https://img.shields.io/badge/Status-Alpha-yellow.svg)
+![Status](https://img.shields.io/badge/Status-Beta-orange.svg)
 
 ---
 
 ## 🎯 Overview
-This script allows you to bulk assign your favourite pet or person to all assets within a specified album. It's perfect for scenarios where you have a curated album where you want to quickly add a face to all images.
+This script allows you to bulk assign your favourite pet or person to all assets within a specified album. It's perfect for scenarios where you have a curated album where you want to quickly tag a person on an image or video within said album.
 
 I recently migrated from Google Photos to Immich: the built-in face recognition doesn't always work perfectly, especially with pets. If you have albums from Google Photos where most images contain a specific person or pet, this script can bulk assign that face to all assets in the album that don't already have it.
 
 ## ✨ Features
 - **Bulk Face Assignment**: Add a face to multiple images/videos at once
-- **Smart Filtering**: Only processes images that don't already have the target person/pet
+- **Smart Filtering**: Only processes images/videos that don't already have the target person/pet
 - **API Validation**: Validates server connection, API key, album, and person IDs
 - **Rate Limiting**: Includes delays and retry logic to be respectful to your server and reverse proxy
-- **Progress Tracking**: Verbose debug output to track progress
-- **Error Handling**: Graceful handling of network errors and timeouts
+- **Progress Tracking**: Visually see progress for big jobs and log out to closely examine actions
+- **Error Handling**: Graceful handling of network/API errors and timeouts
 
 ## 🔑 Prerequisites
 - Python 3.7 or higher
 - [UV](https://github.com/astral-sh/uv) (recommended) or pip for dependency management
 - An Immich server with API access
-- Valid Immich API key
+- A valid Immich API key
 - Album ID and Person ID you want to work with
 - Ownership of recipient Album
 
@@ -40,7 +40,7 @@ I recently migrated from Google Photos to Immich: the built-in face recognition 
 
 2. **Install required dependencies using UV**
    
-   UV is a fast Python package installer and resolver. It provides better dependency resolution and faster installs. Dependencies are managed in `pyproject.toml`.
+   [UV](https://docs.astral.sh/uv/) is an extremely fast Python package and project manager, written in Rust (nuff said). It provides better dependency resolution and faster installs (over pip). Dependencies are managed within `pyproject.toml`.
    
    ```bash
    # Install UV if you haven't already
@@ -52,7 +52,11 @@ I recently migrated from Google Photos to Immich: the built-in face recognition 
 
    Or if you prefer pip:
    ```bash
-   pip install requests click
+   pip install requests
+   ```
+3. If Installing from windows, [Astral](https://docs.astral.sh/uv/getting-started/installation/) has an IEX WFM script. Make sure to add UV to PATH vars after install.
+   ```powershell
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
    ```
 
 ## 🚀 Usage
@@ -61,46 +65,47 @@ I recently migrated from Google Photos to Immich: the built-in face recognition 
 
 **Using UV (recommended):**
 ```bash
-uv run bulk_add_faces_to_images.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id
+uv run immich_bulk_assign_face_to_album.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id
 ```
 
 **Using Python directly:**
 ```bash
-python bulk_add_faces_to_images.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id
+python immich_bulk_assign_face_to_album.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id
 ```
 
 ### With Debug Output
 
 **Using UV:**
 ```bash
-uv run bulk_add_faces_to_images.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id
+uv run immich_bulk_assign_face_to_album.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id --debug
 ```
 
 **Using Python directly:**
 ```bash
-python bulk_add_faces_to_images.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id
+python immich_bulk_assign_face_to_album.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id --debug
 ```
 
 ### Parameters
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--server` | ✅ | Your Immich server URL (e.g., `https://immich.domain.com`) |
-| `--key` | ✅ | Your Immich API key |
+| Parameter  | Required | Description |
+|------------|----------|-------------|
+| `--url`    | ✅ | Your Immich server URL (e.g., `https://immich.domain.com`) |
+| `--key`    | ✅ | Your Immich API key |
 | `--person` | ✅ | ID of the person you want to add to images |
-| `--album` | ✅ | ID of the album containing the target images |
+| `--album`  | ✅ | ID of the album containing the target images |
+| `--debug` | ❌ | Enable verbose debug output |
 
 ### Getting IDs
 
 **Finding Album IDs:**
-1. Go to your Immich web interface
+1. Go to the "Albums" section in Immich: `https://your_immich_server.com/albums`
 2. Navigate to the desired album
-3. Check the URL: `https://your_immich_server.com/albums/{album-id}`
+3. Grab the unique ID at the end of the URL: `https://your_immich_server.com/albums/{album-id}`
 
 **Finding Person IDs:**
-1. Go to People section in Immich
+1. Go to the "People" section in Immich: `https://your_immich_server.com/people`
 2. Click on the person
-3. Check the URL: `https://your_immich_server.com/people/{person-id}`
+3. Grab the unique ID at the end of the URL: `https://your_immich_server.com/people/{person-id}`
 
 ## 💡 Example Use Case
 
@@ -112,7 +117,7 @@ python bulk_add_faces_to_images.py --server https://your_immich_server.com --key
 3. Run the script to bulk assign Rex's face to all images/videos in that album
 
 ```bash
-uv run bulk_add_faces_to_images.py \
+uv run immich_bulk_assign_face_to_album.py \
   --url https://immich.mydomain.com \
   --key 1234567890abcdef \
   --person abc123-def456-ghi789 \
@@ -123,7 +128,7 @@ uv run bulk_add_faces_to_images.py \
 
 - **Imposed Query Limit**: The script processes only the first 50 assets in an album (for testing purposes, will remove in future)
 - **Rate Limiting**: Includes 0.1-second delays between requests to avoid overwhelming your server
-- **Backup Recommended**: Always backup your Immich database before running bulk operations
+- **Backup Recommended**: Always backup your Immich database before running bulk operations. See [this](https://immich.app/docs/administration/backup-and-restore/) guide for instructions.
 - **Test First**: Try with a small album first to ensure everything works as expected
 
 ## 🔧 Current Limitations & TODOs
@@ -138,7 +143,7 @@ This is an alpha version with several planned improvements:
 - [x] Session management across all requests
 - [ ] Break logic into more focused functions
 - [ ] Performance optimizations
-- [ ] Add progress indicators
+- [x] Add progress indicators
 - [ ] Refactor constructor, overly complicated
 - [ ] Breakup logic into testable functions
 
@@ -155,13 +160,15 @@ This is an alpha version with several planned improvements:
 **Connection Timeouts**
 - The script includes retry logic, but if you have a slow connection, you may need to increase timeout values
 
-## ⭐ Recommendation
+## ⭐ Recommendations
 
-**Immich-Face-To-Album**
-
-- https://github.com/romainrbr/immich-face-to-album
-- This script automatically adds images containing a specified person to the target album. Useful for keeping albums updated when you manually tag new faces but forget to add them to albums.
-- Take a look at immich-face-to-album's readme to see how to add as a cron job.
+1. **Immich-Face-To-Album**
+   - https://github.com/romainrbr/immich-face-to-album
+   - This script automatically adds images containing a specified person to the target album. Useful for keeping albums updated when you manually tag new faces but forget to add them to albums.
+   - Take a look at [immich-face-to-album's readme](https://github.com/romainrbr/immich-face-to-album?tab=readme-ov-file#on-a-schedule) to see how to add as a cron job.
+2. **Immich-go**
+   - https://github.com/simulot/immich-go
+   - Script designed to streamline uploading large photo collections to your Immich server. Highly customizable, check readme for details.
 
 ## 🤝 Contributing
 
