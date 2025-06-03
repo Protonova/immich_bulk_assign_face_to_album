@@ -1,220 +1,191 @@
-from pprint import pprint
-from datetime import date, datetime
+import argparse
+import json
+import logging
+from sys import exit
 from time import sleep
+from typing import List
+
+import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
-import requests
-import json
-import click
+logger = logging.getLogger(__name__)
 
-# TODO: Cleanup code/comments
-# TODO: Fix variable names
-# TODO: Properly initialize used variables
-# TODO: Add more/proper error handling
-# TODO: Add proper logging and print messages (remove click echos and json outputs)
-# TODO: Implement sessions across all requests
-# TODO: breakup logic into more functions (if needed)
-# TODO: Improve logic for efficiency. Like list comprehension and removing duplicate logic
+# TODO: Detangle logic, improve efficiency.
+# TODO: Refactor constructor, overly complicated.
+# TODO: Breakup logic into testable functions
 
-def serialize_json_dates(obj) -> object:
-    if isinstance(obj, (date, datetime)):
-        return "{}-{}-{}".format(obj.year, obj.strftime('%m'), obj.strftime('%d'))
+class BulkAssignFaceToAlbum:
+    def __init__(self, server_base_url, api_key, requested_person, requested_album):
+        self.album_list = []
+        self.person_list = []
+        self.found_album = False
+        self.found_person = False
+        self.base_url = server_base_url
+        self.album_id = requested_album
+        self.album_name = None
+        self.person_id = requested_person
+        self.person_name = None
+        self.default_headers = {"Accept": "application/json", "Content-Type": "application/json", "x-api-key": api_key}
+        self.session = requests.Session()
 
-def add_person_to_album():
-    return None
+        # Session Configuration
+        retry_strategy = Retry(total=5, backoff_factor=0.2)
+        self.session.mount('https://', HTTPAdapter(max_retries=retry_strategy))
 
-def get_endpoint_data(endpoint, headers):
-    results_list = []
-    # Retrieve all albums and then people asset lists
-    response = requests.get(url=endpoint,headers=headers)
-    # pprint(r.text)
-    json_data = json.loads(response.text)
-    if '/api/albums' in endpoint:
-        for album in json_data:
-            temp_dict = {}
-            for key in ("albumName", "id"):
-                temp_dict[key] = album[key]
-            results_list.append(temp_dict)
-    elif '/api/people' in endpoint:
-        for person in json_data['people']:
-            results_list.append({'name': person['name'], 'id': person['id']})
+        self.validate_person_and_album()
+        temp_asset_list = []
+        filtered_asset_list = []
 
-    # pprint(album_list)
-    return results_list
+        if self.found_album:
+            logger.info(f'Validated {self.album_id} as {self.album_name}')
 
-@click.command()
-@click.option("--server", help="Your Immich server URL (ie https://immich.domain.com)", required=True)
-@click.option("--key", help="Your Immich API Key", required=True)
-@click.option("--person", help="ID of the person you want to add", required=True)
-@click.option("--album", help="ID of the album you want to add the person to", required=True)
-@click.option("--debug", is_flag=True, help="Enable verbose debug output")
-def immich_bulk_assign_face_to_album(server, key, person, album, debug=False):
-    # https://immich.app/docs/api/get-all-albums
-    headers = {"Accept": "application/json", "Content-Type": "application/json", "x-api-key": key}
-    # payload = {}
-    # endpoint = f'{server}/api/albums/{album}/assets'
-    # /api/albums
-    album_list = []
-    person_list = []
-    asset_list_to_modify = []
-    found_album = False
-    found_person = False
-
-    try:
-        response = requests.get(url=f'{server}/api/server/about',headers=headers)
-        response.raise_for_status()
-        pprint(response.text)
-        if response.status_code == 200:
-            click.echo(f'Success | Authenticated with {server}.')
-
-        # Retrieve available albums and people
-        album_list = get_endpoint_data(f'{server}/api/albums', headers)
-        # pprint(album_list)
-        person_list = get_endpoint_data(f'{server}/api/people', headers)
-        # pprint(person_list)
-
-        # Validate that your request is valid
-        # any(d.get('albumName') == album_name for d in list_of_dicts)
-        # exists = any(d.get('albumName') == album for d in album_list)
-        # pprint(album)
-        # Validate album
-        for album_entry in album_list:
-            # print(album_entry)
-            if album_entry.get('id') == album:
-                # print(album_entry)
-                album_name = album_entry['albumName']
-                album_id = album_entry['id']
-                found_album = True
-                click.echo(f'Debug | Found an album with id: \"{album}\", it is associated with: \"{album_name}\".')
-                # pprint([album_name,album_id])
-        # Validate person
-        for person_entry in person_list:
-            if person_entry.get('id') == person:
-                person_name = person_entry['name']
-                person_id = person_entry['id']
-                found_person = True
-                click.echo(f'Debug | Found a person with id: \"{person}\", it is associated with: \"{person_name}\".')
-
-        # Generate list of pictures in album:
-        response = requests.request("GET", f"{server}/api/albums/{album}", headers=headers)
-        json_data = json.loads(response.text)
-
-        # with open('album_data.json', 'w') as f:
-        #     json.dump(json_data, f, indent=2)
-        # pprint(json_data)
-        count = 0
-        session = requests.Session()
-        retries = Retry(total=5, backoff_factor=0.2)
-        session.mount('https://', HTTPAdapter(max_retries=retries))
-        for i,asset in enumerate(json_data['assets']):
-            if i >= 50:
-                break
-            # count = count + 1
-            # asset_list.append({'id': asset['id'], 'originalPath': asset['originalPath']})
-
-            # response2 = requests.request("GET", f"{server}/api/assets/{asset['id']}", headers=headers)
+            # Generate list of pictures in album:
             try:
-                response2 = session.get(f"{server}/api/assets/{asset['id']}", headers=headers, timeout=10)
-                response2.raise_for_status()
-                json_data2 = json.loads(response2.text)
-                # print(asset['id'], len(asset.get('people', [])))  # See which assets have people
-                # pprint(json_data2.get('people', []))
-                # asset_list.append({'id': asset['id'], 'originalPath': asset['originalPath'], 'deviceAssetId': asset['deviceAssetId'], 'ownerId': asset['ownerId'], 'people': json_data2.get('people', [])})
-                # pprint({'id': asset['id'], 'originalPath': asset['originalPath'], 'deviceAssetId': asset['deviceAssetId'], 'ownerId': asset['ownerId'], 'people': json_data2.get('people', [])})
-                asset_list_to_modify.append({'id': asset['id'], 'originalPath': asset['originalPath'], 'deviceAssetId': asset['deviceAssetId'], 'ownerId': asset['ownerId'], 'people': json_data2.get('people', [])})
-                sleep(0.1)
+                album_response = self.session.get(url=f"{self.base_url}/api/albums/{self.album_id}", headers=self.default_headers)
+                album_response.raise_for_status()
+                album_json = album_response.json()
+
+                for i,asset in enumerate(album_json['assets']):
+                    if i >= 100:
+                        break
+                # for asset in album_json['assets']:
+                    try:
+                        asset_info_response = self.session.get(url=f"{self.base_url}/api/assets/{asset['id']}", headers=self.default_headers)
+                        asset_info_response.raise_for_status()
+                        asset_json = asset_info_response.json()
+                        temp_asset_list.append({'id': asset['id'], 'originalPath': asset['originalPath'], 'deviceAssetId': asset['deviceAssetId'], 'ownerId': asset['ownerId'], 'people': asset_json.get('people', [])})
+                        sleep(0.1)  # TODO test if this is necessary
+                    except requests.exceptions.RequestException as e:
+                        logger.error(f"Failed to fetch asset {asset['id']}: {e}")
+                        continue  # Skip this asset and continue
             except requests.exceptions.RequestException as e:
-                print(f"Failed to fetch asset {asset['id']}: {e}")
-                continue  # Skip this asset and continue
+                logger.exception(f"Failed to fetch assets for \"{self.base_url}/api/albums/{self.album_id}\": {e}")
 
-
-
-            # if count == 3:
-            #     with open('./test.json', encoding='utf-8', mode='w') as f:
-            #         f.write(json.dumps(asset_list, default=serialize_json_dates))
-            #     exit(0)
-
-        # with open('test.json', 'w') as f:
-        #     json.dump(asset_list_to_modify, f, indent=2)
-
-        # New logic
-        # personId == people['id']
-        # curl -L 'https://photos.local.noveria.uk/api/faces' \
-        # -H 'Content-Type: application/json' \
-        # -H 'x-api-key: xxxxxxxxx' \
-        # -d '{
-        #   "assetId": "xxxxxxxxxxxxxx",
-        #   "height": 0,
-        #   "imageHeight": 0,
-        #   "imageWidth": 0,
-        #   "personId": "xxxxxxxxxxxxxx",
-        #   "width": 0,
-        #   "x": 0,
-        #   "y": 0
-        # }'
-        filtered_assets = []
-        if found_album and found_person == True:
-            # for asset in asset_list_to_modify:
-            #     has_target_person = any(person['id'] == person for person in asset.get('people', [])) # This part didn't work as expected...
-            #
-            #     # Add to filtered list if target person is NOT found
-            #     if not has_target_person:
-            #         filtered_assets.append(asset)
+        if self.found_person:
+            logger.info(f'Validated {self.person_id} as {self.person_name}')
 
             # Create new list containing only what needs to be changed
-            for asset in asset_list_to_modify:
-                people_ids = [person['id'] for person in asset.get('people', [])]
-                # click.echo(f"Debug | Asset people IDs: {people_ids}")
+            if self.found_album and self.found_person:
+                for asset in temp_asset_list:
+                    people_ids = [person['id'] for person in asset.get('people', [])]
+                    if self.person_id in people_ids:
+                        logger.debug(f"Asset: {asset['id']} already has the target person: {self.person_id}")
+                    else:
+                        logger.debug(f'Adding Asset: {asset['id']} to the list of actionable assets')
+                        filtered_asset_list.append(asset)
 
-                has_target_person = person in people_ids
-                # click.echo(f"Debug | Has target person: {has_target_person}")
+                # Load dummy face tagging parameters and post them to immich
+                for asset_image in filtered_asset_list:
+                    payload = json.dumps({
+                        "assetId": asset_image['id'],
+                        "height": 0,
+                        "imageHeight": 0,
+                        "imageWidth": 0,
+                        "personId": str(self.person_id),
+                        "width": 0,
+                        "x": 0,
+                        "y": 0
+                    })
+                    try:
+                        actionable_assets_response = self.session.post(f"{self.base_url}/api/faces", headers=self.default_headers, timeout=10, data=payload)
+                        actionable_assets_response.raise_for_status()
+                        logger.debug(f'Added: \"{self.person_id}\" to asset: \"{asset_image['id']}\"')
+                        sleep(0.1)  # TODO test if this is necessary
+                    except requests.exceptions.RequestException as err:
+                        logger.error(f"Failed to modify asset {asset_image['id']}: {err}")
+                        continue  # Skip this asset and continue
 
-                if not has_target_person:
-                    filtered_assets.append(asset)
-                    # click.echo(f"Debug | Added to filtered list")
-                else:
-                    click.echo(f"Debug | Skipped {asset['id']} - contains target person")
+                logger.info(f'Added \"{self.person_name}\" to {len(filtered_asset_list)} assets within \"{self.album_name}\"')
 
-            for asset_image in filtered_assets:
-                payload = json.dumps({
-                    "assetId": asset_image['id'],
-                    "height": 0,
-                    "imageHeight": 0,
-                    "imageWidth": 0,
-                    "personId": str(person),
-                    "width": 0,
-                    "x": 0,
-                    "y": 0
-                })
-                try:
-                    r = session.post(f"{server}/api/faces", headers=headers, timeout=10, data=payload)
-                    r.raise_for_status()
-                    click.echo(f'Debug | Added person: \"{person}\" to asset: \"{asset_image['id']}\"')
-                    sleep(0.1)
-                except requests.exceptions.RequestException as e:
-                    print(f"Failed to modify asset {asset_image['id']}: {e}")
-                    continue  # Skip this asset and continue
+    def get_endpoint_data(self, endpoint: str) -> List[dict] | None:
+        """
+        Go grab either a list of available albums or people.
+        :param endpoint: the complete url to query.
+        :return: the list (contents) of the requested api.
+        """
+        results_list = []
 
-        with open('filtered_assets.json', 'w') as f:
-            json.dump(filtered_assets, f, indent=2)
+        try:
+            queried_response = self.session.get(url=endpoint, headers=self.default_headers)
+            queried_response.raise_for_status()
+            json_data = queried_response.json()
 
-        # with open('./test.json', encoding='utf-8', mode='w') as f:
-        #     f.write(json.dumps(asset_list, default=serialize_json_dates))
-    except requests.exceptions.HTTPError as err:
-        if response.status_code == 401:
-            click.echo(f'Error | Unauthorized connection. Please check your credentials.')
-        else:
-            click.echo(f'Error | Failed to connect to {server} and got error: {err}. (Status code: {response.status_code})')
+            if '/api/albums' in endpoint: # https://immich.app/docs/api/get-all-albums
+                for album in json_data:
+                    temp_dict = {}
+                    for key in ("albumName", "id"):
+                        temp_dict[key] = album[key]
+                    results_list.append(temp_dict)
+            elif '/api/people' in endpoint: # https://immich.app/docs/api/get-all-people
+                for person in json_data['people']:
+                    results_list.append({'name': person['name'], 'id': person['id']})
+            logger.debug(f'Retrieved data from \"{endpoint}\"')
 
+            return results_list
+        except requests.exceptions.RequestException as e:
+            logger.exception(f"Failed to fetch assets for \"{endpoint}\": {e}")
+            return None
 
+    def validate_person_and_album(self) -> None:
+        try:
+            # Validate that we have an immich server that is actually working...
+            valid_immich_response = self.session.get(url=f'{self.base_url}/api/server/about', headers=self.default_headers)
+            valid_immich_response.raise_for_status()
 
-# Connect to API in try catch
-# Check if key is valid
-# Check if album is valid (get all albums)
-# Check if person is valid (get all persons)
-# Determine unique assets in the list and ones without the person you want to add
-# Get all assets in the album and Loop through all assets then add person to asset
+            if valid_immich_response.status_code == 200:
+                logger.info(f'Successfully authenticated with {self.base_url}')
+
+                # Retrieve available albums and people
+                self.album_list = self.get_endpoint_data(f'{self.base_url}/api/albums')
+                self.person_list = self.get_endpoint_data(f'{self.base_url}/api/people')
+
+                # Validate album ID
+                for album_entry in self.album_list:
+                    if album_entry.get('id') == self.album_id:
+                        self.album_name = album_entry['albumName']
+                        self.album_id = album_entry['id']
+                        self.found_album = True
+                        logger.info(f'Found an album with id: \"{self.album_id}\", otherwise known as \"{self.album_name}\"')
+
+                # Validate person ID
+                for person_entry in self.person_list:
+                    if person_entry.get('id') == self.person_id:
+                        self.person_name = person_entry['name']
+                        self.person_id = person_entry['id']
+                        self.found_person = True
+                        logger.info(f'Found a person with id: \"{self.person_id}\", otherwise known as \"{self.person_name}\"')
+        except requests.exceptions.HTTPError as err:
+            if valid_immich_response.status_code == 401:
+                logger.exception(f'Unauthorized connection. Please check your credentials')
+            else:
+                logger.exception(f'Failed to connect to {self.base_url} and got error: {err}. ({valid_immich_response.status_code})')
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog='Bulk Assign Faces to Albums', usage='%(prog)s [options]')
+    parser.add_argument('-u', '--url', '--server', type=str, required=True, help='Your Immich server URL (ie https://immich.domain.com)')
+    parser.add_argument('-k', '--key', type=str, required=True, help='Your Immich API Key')
+    parser.add_argument('-p', '--person', type=str, required=True, help='ID of the person you want to add')
+    parser.add_argument('-a', '--album', type=str, required=True, help='ID of the album you want to add the person to')
+
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s %(levelname)-8s L:%(lineno)-3s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        handlers=[logging.FileHandler("BulkAssignFaceToAlbum_debug.log"), logging.StreamHandler()]
+    )
+
+    logger.info('BAFTA Script Started')
+    query_immich = BulkAssignFaceToAlbum(args.url, args.key, args.person, args.album)
+    logger.info('BAFTA Script Exiting')
+
 
 if __name__ == '__main__':
-    immich_bulk_assign_face_to_album()
+    try:
+        main()
+    except Exception as e:
+        logger.exception(e)
+        logger.info(f'Exiting with return code 1')
+        exit(1)
