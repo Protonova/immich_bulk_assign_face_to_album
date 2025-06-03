@@ -7,6 +7,7 @@ from typing import List
 
 import requests
 from requests.adapters import HTTPAdapter
+from tqdm import tqdm
 from urllib3.util import Retry
 
 logger = logging.getLogger(__name__)
@@ -46,10 +47,7 @@ class BulkAssignFaceToAlbum:
                 album_response.raise_for_status()
                 album_json = album_response.json()
 
-                for i,asset in enumerate(album_json['assets']):
-                    if i >= 100:
-                        break
-                # for asset in album_json['assets']:
+                for asset in tqdm(album_json['assets'][:110], desc="Reviewing Entire Album", position=0, leave=True): # TODO: Remove hard limit on release
                     try:
                         asset_info_response = self.session.get(url=f"{self.base_url}/api/assets/{asset['id']}", headers=self.default_headers)
                         asset_info_response.raise_for_status()
@@ -76,27 +74,30 @@ class BulkAssignFaceToAlbum:
                         filtered_asset_list.append(asset)
 
                 # Load dummy face tagging parameters and post them to immich
-                for asset_image in filtered_asset_list:
-                    payload = json.dumps({
-                        "assetId": asset_image['id'],
-                        "height": 0,
-                        "imageHeight": 0,
-                        "imageWidth": 0,
-                        "personId": str(self.person_id),
-                        "width": 0,
-                        "x": 0,
-                        "y": 0
-                    })
-                    try:
-                        actionable_assets_response = self.session.post(f"{self.base_url}/api/faces", headers=self.default_headers, timeout=10, data=payload)
-                        actionable_assets_response.raise_for_status()
-                        logger.debug(f'Added: \"{self.person_id}\" to asset: \"{asset_image['id']}\"')
-                        sleep(0.1)  # TODO test if this is necessary
-                    except requests.exceptions.RequestException as err:
-                        logger.error(f"Failed to modify asset {asset_image['id']}: {err}")
-                        continue  # Skip this asset and continue
+                if filtered_asset_list:
+                    for asset_image in tqdm(filtered_asset_list, desc="Processing Faces Additions"):
+                        payload = json.dumps({
+                            "assetId": asset_image['id'],
+                            "height": 0,
+                            "imageHeight": 0,
+                            "imageWidth": 0,
+                            "personId": str(self.person_id),
+                            "width": 0,
+                            "x": 0,
+                            "y": 0
+                        })
+                        try:
+                            actionable_assets_response = self.session.post(f"{self.base_url}/api/faces", headers=self.default_headers, timeout=10, data=payload)
+                            actionable_assets_response.raise_for_status()
+                            logger.debug(f'Added: \"{self.person_id}\" to asset: \"{asset_image['id']}\"')
+                            sleep(0.1)  # TODO test if this is necessary
+                        except requests.exceptions.RequestException as err:
+                            logger.error(f"Failed to modify asset {asset_image['id']}: {err}")
+                            continue  # Skip this asset and continue
+                else:
+                    logger.debug(f"No assets needed modifying, \"{self.person_name}\" was already tagged in all assets")
 
-                logger.info(f'Added \"{self.person_name}\" to {len(filtered_asset_list)} assets within \"{self.album_name}\"')
+                logger.info(f'Summary: \"{self.person_name}\" was added to {len(filtered_asset_list)} assets within \"{self.album_name}\"')
 
     def get_endpoint_data(self, endpoint: str) -> List[dict] | None:
         """
@@ -167,11 +168,13 @@ def main() -> None:
     parser.add_argument('-k', '--key', type=str, required=True, help='Your Immich API Key')
     parser.add_argument('-p', '--person', type=str, required=True, help='ID of the person you want to add')
     parser.add_argument('-a', '--album', type=str, required=True, help='ID of the album you want to add the person to')
+    parser.add_argument('-d', '--debug', action='store_true', help='Enable debug mode')
 
     args = parser.parse_args()
 
+    logging_level = logging.DEBUG if args.debug else logging.INFO
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging_level,
         format='%(asctime)s %(levelname)-8s L:%(lineno)-3s %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
         handlers=[logging.FileHandler("BulkAssignFaceToAlbum_debug.log"), logging.StreamHandler()]
