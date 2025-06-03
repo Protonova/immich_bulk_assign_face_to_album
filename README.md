@@ -73,12 +73,12 @@ python bulk_add_faces_to_images.py --server https://your_immich_server.com --key
 
 **Using UV:**
 ```bash
-uv run bulk_add_faces_to_images.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id --debug
+uv run bulk_add_faces_to_images.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id
 ```
 
 **Using Python directly:**
 ```bash
-python bulk_add_faces_to_images.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id --debug
+python bulk_add_faces_to_images.py --server https://your_immich_server.com --key your_api_key --person person_id --album album_id
 ```
 
 ### Parameters
@@ -89,7 +89,6 @@ python bulk_add_faces_to_images.py --server https://your_immich_server.com --key
 | `--key` | ✅ | Your Immich API key |
 | `--person` | ✅ | ID of the person you want to add to images |
 | `--album` | ✅ | ID of the album containing the target images |
-| `--debug` | ❌ | Enable verbose debug output |
 
 ### Getting IDs
 
@@ -114,11 +113,10 @@ python bulk_add_faces_to_images.py --server https://your_immich_server.com --key
 
 ```bash
 uv run bulk_add_faces_to_images.py \
-  --server https://photos.mydomain.com \
+  --url https://immich.mydomain.com \
   --key 1234567890abcdef \
   --person abc123-def456-ghi789 \
   --album xyz789-uvw456-rst123 \
-  --debug
 ```
 
 ## ⚠️ Important Notes
@@ -132,15 +130,17 @@ uv run bulk_add_faces_to_images.py \
 
 This is an alpha version with several planned improvements:
 
-- [ ] Code cleanup and better commenting
-- [ ] Improved variable naming
-- [ ] Proper variable initialization
-- [ ] Enhanced error handling and logging
+- [x] Code cleanup and better commenting
+- [x] Improved variable naming
+- [x] Proper variable initialization
+- [x] Enhanced error handling and logging
 - [ ] Remove hardcoded 50-asset limit
-- [ ] Session management across all requests
+- [x] Session management across all requests
 - [ ] Break logic into more focused functions
 - [ ] Performance optimizations
-- [ ] Better progress indicators
+- [ ] Add progress indicators
+- [ ] Refactor constructor, overly complicated
+- [ ] Breakup logic into testable functions
 
 ## 🛠️ Troubleshooting
 
