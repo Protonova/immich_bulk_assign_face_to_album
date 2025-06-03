@@ -1,9 +1,9 @@
 [project]
 name = "immich-bulk-add-faces-to-images"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.1"
+description = "Script for bulk assigning faces to assets within a specified album in Immich"
 requires-python = ">=3.13"
 dependencies = [
-    "click>=8.2.1",
     "requests>=2.32.3",
+    "tqdm>=4.67.1",
 ]
